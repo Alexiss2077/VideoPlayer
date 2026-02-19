@@ -446,7 +446,7 @@ namespace VideoPlayer
             }
         }
 
-        private async Task<VideoFileInfo> GetVideoInfoAsync(string path)
+        private Task<VideoFileInfo> GetVideoInfoAsync(string path)
         {
             var fi   = new FileInfo(path);
             var info = new VideoFileInfo
@@ -460,7 +460,7 @@ namespace VideoPlayer
             try
             {
                 using var media = new Media(_libVLC, path, FromType.FromPath);
-                await media.ParseAsync(MediaParseOptions.ParseLocal);
+                media.Parse(MediaParseOptions.ParseLocal);
 
                 info.Duration = TimeSpan.FromMilliseconds(media.Duration);
 
@@ -490,13 +490,10 @@ namespace VideoPlayer
                     }
                 }
 
-                // Actualizar duración en la lista
-                int idx = _playlist.Count; // índice del ítem que se está añadiendo
-                // (se llama antes de agregar, así que es el último)
             }
             catch { /* silencioso: se usa la info parcial */ }
 
-            return info;
+            return Task.FromResult(info);
         }
 
         private void RemoveSelected()
