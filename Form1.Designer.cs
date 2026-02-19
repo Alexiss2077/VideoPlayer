@@ -199,8 +199,16 @@ namespace VideoPlayer
             this.propsTable.BackColor   = Theme.Surface;
             this.propsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90F));
             this.propsTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            for (int i = 0; i < 10; i++)
-                this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
+            this.propsTable.RowStyles.Add(new RowStyle(SizeType.Percent, 10F));
             this.propsTable.Padding   = new Padding(0, 4, 0, 0);
 
             // Filas de propiedades: key labels (col 0) + value labels (col 1)
