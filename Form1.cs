@@ -13,6 +13,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Drawing;
 using System.IO;
 using System.Linq;
@@ -43,40 +44,81 @@ namespace VideoPlayer
         private FormBorderStyle   _prevBorderStyle;
         private int  _prevVolume    = 100;
         private readonly Random   _rng = new();
+        private bool _isVlcReady;
 
         private static readonly float[] SpeedValues = { 0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f };
 
         // ────────────────────────────────────────────────────────────────────
         public Form1()
         {
-            Core.Initialize();          // SIEMPRE antes de new LibVLC()
             InitializeComponent();
-            InitVLC();
-            SetupEvents();
-            updateTimer.Start();
+
+            if (IsInDesigner())
+                return;
+
+            SetupUiEvents();
+
+            if (InitVLC())
+            {
+                _isVlcReady = true;
+                SetupPlayerEvents();
+                updateTimer.Start();
+                return;
+            }
+
+            ShowVideoUnavailableMessage();
         }
 
         // ═══════════════════════════════════════════════════════════════════
         //  Inicialización VLC
         // ═══════════════════════════════════════════════════════════════════
-        private void InitVLC()
+        private bool InitVLC()
         {
-            _libVLC = new LibVLC();
-            _player = new LibVLCSharp.Shared.MediaPlayer(_libVLC)
+            try
             {
-                Volume = 100
-            };
+                Core.Initialize();          // SIEMPRE antes de new LibVLC()
+                _libVLC = new LibVLC();
+                _player = new LibVLCSharp.Shared.MediaPlayer(_libVLC)
+                {
+                    Volume = 100
+                };
 
-            _videoView = new VideoView
+                _videoView = new VideoView
+                {
+                    Dock        = DockStyle.Fill,
+                    BackColor   = Color.Black,
+                    MediaPlayer = _player
+                };
+                videoPanel.Controls.Add(_videoView);
+                return true;
+            }
+            catch (Exception)
             {
-                Dock        = DockStyle.Fill,
-                BackColor   = Color.Black,
-                MediaPlayer = _player
-            };
-            videoPanel.Controls.Add(_videoView);
+                return false;
+            }
         }
 
-        private void SetupEvents()
+        private static bool IsInDesigner()
+        {
+            return LicenseManager.UsageMode == LicenseUsageMode.Designtime;
+        }
+
+        private void ShowVideoUnavailableMessage()
+        {
+            var errorLabel = new Label
+            {
+                Dock = DockStyle.Fill,
+                ForeColor = Theme.TextSecondary,
+                BackColor = Theme.VideoBlack,
+                Font = Theme.FontNormal,
+                TextAlign = ContentAlignment.MiddleCenter,
+                Text = "No se pudo iniciar VLC.\nInstala/restaura los paquetes de LibVLC y ejecuta en x64."
+            };
+            videoPanel.Controls.Clear();
+            videoPanel.Controls.Add(errorLabel);
+        }
+
+        private void SetupPlayerEvents()
         {
             // Eventos del reproductor (hilo de LibVLC → invocar al hilo UI)
             _player.Playing      += (_, _) => UI(() => OnVlcPlaying());
@@ -84,7 +126,10 @@ namespace VideoPlayer
             _player.Stopped      += (_, _) => UI(() => OnVlcStopped());
             _player.EndReached   += (_, _) => UI(() => OnVlcEndReached());
             _player.EncounteredError += (_, _) => UI(() => OnVlcError());
+        }
 
+        private void SetupUiEvents()
+        {
             // Seek bar
             seekBar.SeekStarted  += (_, _) => _isSeeking = true;
             seekBar.SeekEnded    += (_, _) => OnSeekBarReleased();
@@ -153,7 +198,7 @@ namespace VideoPlayer
         // ═══════════════════════════════════════════════════════════════════
         partial void OnUpdateTick()
         {
-            if (_player == null) return;
+            if (!_isVlcReady || _player == null) return;
 
             // Actualizar barra seek
             if (!_isSeeking && _player.Length > 0)
@@ -177,6 +222,7 @@ namespace VideoPlayer
         // ═══════════════════════════════════════════════════════════════════
         partial void btnPlayPause_Click(object? s, EventArgs e)
         {
+            if (!_isVlcReady) return;
             if (_currentIndex < 0)
             {
                 if (_playlist.Count > 0) PlayAtIndex(0);
@@ -200,6 +246,7 @@ namespace VideoPlayer
 
         partial void btnStop_Click(object? s, EventArgs e)
         {
+            if (!_isVlcReady) return;
             Task.Run(() => _player.Stop());
         }
 
@@ -208,6 +255,7 @@ namespace VideoPlayer
 
         partial void btnMute_Click(object? s, EventArgs e)
         {
+            if (!_isVlcReady) return;
             _isMuted = !_isMuted;
             if (_isMuted)
             {
@@ -246,6 +294,7 @@ namespace VideoPlayer
         private void OnSeekBarReleased()
         {
             _isSeeking = false;
+            if (!_isVlcReady) return;
             if (_player.Length > 0 && _player.IsSeekable)
             {
                 float pos = (float)seekBar.Value / seekBar.Maximum;
@@ -256,6 +305,7 @@ namespace VideoPlayer
         // ── Volumen ──────────────────────────────────────────────────────────
         partial void OnVolumeBarChanged()
         {
+            if (!_isVlcReady) return;
             _player.Volume  = volumeBar.Value;
             lblVolume.Text  = volumeBar.Value.ToString();
             if (volumeBar.Value == 0)   { _isMuted = true;  btnMute.Text = "🔇"; }
@@ -265,6 +315,7 @@ namespace VideoPlayer
         // ── Velocidad ────────────────────────────────────────────────────────
         partial void OnSpeedChanged()
         {
+            if (!_isVlcReady) return;
             int idx = cmbSpeed.SelectedIndex;
             if (idx >= 0 && idx < SpeedValues.Length)
                 _player.SetRate(SpeedValues[idx]);
@@ -275,12 +326,14 @@ namespace VideoPlayer
         // ═══════════════════════════════════════════════════════════════════
         private void PlaySelected()
         {
+            if (!_isVlcReady) return;
             if (playlistView.SelectedItems.Count == 0) return;
             PlayAtIndex(playlistView.SelectedItems[0].Index);
         }
 
         private void PlayNext()
         {
+            if (!_isVlcReady) return;
             if (_playlist.Count == 0) return;
 
             int next;
@@ -303,6 +356,7 @@ namespace VideoPlayer
 
         private void PlayPrevious()
         {
+            if (!_isVlcReady) return;
             if (_playlist.Count == 0) return;
             // Si han pasado más de 3 s, reiniciar en vez de ir al anterior
             if (_player.Time > 3000)
@@ -316,6 +370,7 @@ namespace VideoPlayer
 
         private void PlayAtIndex(int index)
         {
+            if (!_isVlcReady) return;
             if (index < 0 || index >= _playlist.Count) return;
             _currentIndex = index;
 
@@ -348,6 +403,7 @@ namespace VideoPlayer
         // ═══════════════════════════════════════════════════════════════════
         partial void btnAddFiles_Click(object? s, EventArgs e)
         {
+            if (!_isVlcReady) return;
             using var dlg = new OpenFileDialog
             {
                 Title       = "Agregar archivos de video",
@@ -363,7 +419,7 @@ namespace VideoPlayer
 
         partial void btnClearPlaylist_Click(object? s, EventArgs e)
         {
-            Task.Run(() => _player.Stop());
+            if (_isVlcReady) Task.Run(() => _player.Stop());
             _playlist.Clear();
             playlistView.Items.Clear();
             _currentIndex = -1;
@@ -373,6 +429,8 @@ namespace VideoPlayer
 
         private async Task AddFilesAsync(IEnumerable<string> paths)
         {
+            if (!_isVlcReady) return;
+
             foreach (var path in paths.Where(IsVideoFile))
             {
                 var info = await GetVideoInfoAsync(path);
@@ -388,7 +446,7 @@ namespace VideoPlayer
             }
         }
 
-        private async Task<VideoFileInfo> GetVideoInfoAsync(string path)
+        private Task<VideoFileInfo> GetVideoInfoAsync(string path)
         {
             var fi   = new FileInfo(path);
             var info = new VideoFileInfo
@@ -402,7 +460,7 @@ namespace VideoPlayer
             try
             {
                 using var media = new Media(_libVLC, path, FromType.FromPath);
-                await media.ParseAsync(MediaParseOptions.ParseLocal);
+                media.Parse(MediaParseOptions.ParseLocal);
 
                 info.Duration = TimeSpan.FromMilliseconds(media.Duration);
 
@@ -432,13 +490,10 @@ namespace VideoPlayer
                     }
                 }
 
-                // Actualizar duración en la lista
-                int idx = _playlist.Count; // índice del ítem que se está añadiendo
-                // (se llama antes de agregar, así que es el último)
             }
             catch { /* silencioso: se usa la info parcial */ }
 
-            return info;
+            return Task.FromResult(info);
         }
 
         private void RemoveSelected()
@@ -446,7 +501,7 @@ namespace VideoPlayer
             if (playlistView.SelectedItems.Count == 0) return;
             int idx = playlistView.SelectedItems[0].Index;
 
-            if (idx == _currentIndex) Task.Run(() => _player.Stop());
+            if (_isVlcReady && idx == _currentIndex) Task.Run(() => _player.Stop());
             if (idx < _currentIndex) _currentIndex--;
 
             playlistView.Items.RemoveAt(idx);
@@ -582,11 +637,11 @@ namespace VideoPlayer
                     e.Handled = true;
                     break;
                 case Keys.Left:
-                    if (_player.IsSeekable) _player.Time = Math.Max(0, _player.Time - 5000);
+                    if (_isVlcReady && _player.IsSeekable) _player.Time = Math.Max(0, _player.Time - 5000);
                     e.Handled = true;
                     break;
                 case Keys.Right:
-                    if (_player.IsSeekable) _player.Time = Math.Min(_player.Length, _player.Time + 5000);
+                    if (_isVlcReady && _player.IsSeekable) _player.Time = Math.Min(_player.Length, _player.Time + 5000);
                     e.Handled = true;
                     break;
                 case Keys.Up:
@@ -655,10 +710,13 @@ namespace VideoPlayer
             updateTimer.Stop();
             try
             {
-                _player.Stop();
-                _player.Dispose();
-                _currentMedia?.Dispose();
-                _libVLC.Dispose();
+                if (_isVlcReady)
+                {
+                    _player.Stop();
+                    _player.Dispose();
+                    _currentMedia?.Dispose();
+                    _libVLC.Dispose();
+                }
             }
             catch { /* silencioso al cerrar */ }
             base.OnFormClosing(e);
