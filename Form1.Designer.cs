@@ -67,7 +67,7 @@ namespace VideoPlayer
         private FlatButton btnAddFiles;
         private FlatButton btnRemove;
         private FlatButton btnClearPlaylist;
-        private ListView playlistView;
+        private ThemedListView playlistView;
         private ColumnHeader colNum;
         private ColumnHeader colName;
         private ColumnHeader colDuration;
@@ -135,7 +135,7 @@ namespace VideoPlayer
             this.btnAddFiles = new FlatButton();
             this.btnRemove = new FlatButton();
             this.btnClearPlaylist = new FlatButton();
-            this.playlistView = new ListView();
+            this.playlistView = new ThemedListView();
             this.colNum = new ColumnHeader();
             this.colName = new ColumnHeader();
             this.colDuration = new ColumnHeader();
@@ -163,7 +163,7 @@ namespace VideoPlayer
             this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
             this.mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 192F));
-            this.mainLayout.BackColor = Theme.Background;
+            this.mainLayout.BackColor = Color.FromArgb(8, 12, 20);
             this.mainLayout.Padding = new Padding(6);
             this.mainLayout.Controls.Add(this.contentSplit, 0, 0);
             this.mainLayout.Controls.Add(this.controlsPanel, 0, 1);
@@ -401,7 +401,7 @@ namespace VideoPlayer
 
             // ── controlsPanel ────────────────────────────────────────────────
             this.controlsPanel.Dock = DockStyle.Fill;
-            this.controlsPanel.BackColor = Theme.Surface;
+            this.controlsPanel.BackColor = Color.FromArgb(12, 18, 32);
             this.controlsPanel.Padding = new Padding(4, 5, 4, 5);
             this.controlsPanel.Margin = new Padding(0, 4, 0, 0);
             this.controlsPanel.Controls.Add(this.controlsLayout);
@@ -409,7 +409,7 @@ namespace VideoPlayer
             this.controlsLayout.Dock = DockStyle.Fill;
             this.controlsLayout.ColumnCount = 1;
             this.controlsLayout.RowCount = 2;
-            this.controlsLayout.BackColor = Theme.Surface;
+            this.controlsLayout.BackColor = Color.FromArgb(12, 18, 32);
             this.controlsLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 28F));
             this.controlsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             this.controlsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
@@ -421,7 +421,7 @@ namespace VideoPlayer
 
             // ── buttonsPanel ─────────────────────────────────────────────────
             this.buttonsPanel.Dock = DockStyle.Fill;
-            this.buttonsPanel.BackColor = Theme.Surface;
+            this.buttonsPanel.BackColor = Color.FromArgb(12, 18, 32);
 
             this.btnPrev.Text = "⏮";
             this.btnPrev.Size = new Size(38, 34);
@@ -517,15 +517,15 @@ namespace VideoPlayer
 
             // ── playlistPanel ────────────────────────────────────────────────
             this.playlistPanel.Dock = DockStyle.Fill;
-            this.playlistPanel.BackColor = Theme.Surface;
-            this.playlistPanel.Padding = new Padding(0, 4, 0, 0);
+            this.playlistPanel.BackColor = Theme.Background;
+            this.playlistPanel.Padding = new Padding(0, 2, 0, 0);
             this.playlistPanel.Margin = new Padding(0, 4, 0, 0);
             this.playlistPanel.Controls.Add(this.playlistView);
             this.playlistPanel.Controls.Add(this.playlistHeader);
 
             this.playlistHeader.Dock = DockStyle.Top;
-            this.playlistHeader.Height = 32;
-            this.playlistHeader.BackColor = Theme.Surface2;
+            this.playlistHeader.Height = 34;
+            this.playlistHeader.BackColor = Color.FromArgb(14, 22, 40);
             this.playlistHeader.Padding = new Padding(4, 0, 4, 0);
             this.playlistHeader.Controls.Add(this.lblPlaylistTitle);
             this.playlistHeader.Controls.Add(this.btnAddFiles);
@@ -535,7 +535,7 @@ namespace VideoPlayer
             this.lblPlaylistTitle.Text = "  LISTA DE REPRODUCCIÓN";
             this.lblPlaylistTitle.Font = Theme.FontTitle;
             this.lblPlaylistTitle.ForeColor = Theme.Accent;
-            this.lblPlaylistTitle.BackColor = Theme.Surface2;
+            this.lblPlaylistTitle.BackColor = Color.FromArgb(14, 22, 40);
             this.lblPlaylistTitle.Dock = DockStyle.Left;
             this.lblPlaylistTitle.Width = 210;
             this.lblPlaylistTitle.TextAlign = ContentAlignment.MiddleLeft;
@@ -560,18 +560,9 @@ namespace VideoPlayer
 
             this.playlistView.Dock = DockStyle.Fill;
             this.playlistView.View = View.Details;
-            this.playlistView.FullRowSelect = true;
-            this.playlistView.MultiSelect = false;
-            this.playlistView.HideSelection = false;
-            this.playlistView.GridLines = false;
-            this.playlistView.BackColor = Color.FromArgb(10, 16, 28);
-            this.playlistView.ForeColor = Theme.TextPrimary;
-            this.playlistView.BorderStyle = BorderStyle.None;
             this.playlistView.Font = Theme.FontNormal;
-            this.playlistView.UseCompatibleStateImageBehavior = false;
-            this.playlistView.HeaderStyle = ColumnHeaderStyle.Nonclickable;
             this.playlistView.AllowDrop = true;
-            this.playlistView.OwnerDraw = false;
+            this.playlistView.UseCompatibleStateImageBehavior = false;
             this.playlistView.DoubleClick += new System.EventHandler(this.PlaylistView_DoubleClick);
             this.playlistView.KeyDown += new KeyEventHandler(this.PlaylistView_KeyDown);
             this.playlistView.Resize += new System.EventHandler(this.PlaylistView_Resize);

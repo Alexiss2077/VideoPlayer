@@ -20,9 +20,9 @@
         dotnet add package VideoLAN.LibVLC.Windows
         dotnet add package LibVLCSharp.WinForms
     -->
-    <PackageReference Include="LibVLCSharp"             Version="3.*" />
+    <PackageReference Include="LibVLCSharp" Version="3.*" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.*" />
-    <PackageReference Include="LibVLCSharp.WinForms"    Version="3.*" />
+    <PackageReference Include="LibVLCSharp.WinForms" Version="3.*" />
   </ItemGroup>
 
 </Project>
