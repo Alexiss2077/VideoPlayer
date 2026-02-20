@@ -570,9 +570,17 @@ namespace VideoPlayer
             this.playlistView.Font = Theme.FontNormal;
             this.playlistView.UseCompatibleStateImageBehavior = false;
             this.playlistView.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            this.playlistView.AllowDrop = true;
+            this.playlistView.OwnerDraw = false;
             this.playlistView.DoubleClick += new System.EventHandler(this.PlaylistView_DoubleClick);
             this.playlistView.KeyDown += new KeyEventHandler(this.PlaylistView_KeyDown);
             this.playlistView.Resize += new System.EventHandler(this.PlaylistView_Resize);
+            this.playlistView.ItemDrag += new ItemDragEventHandler(this.PlaylistView_ItemDrag);
+            this.playlistView.DragEnter += new DragEventHandler(this.PlaylistView_DragEnter);
+            this.playlistView.DragOver += new DragEventHandler(this.PlaylistView_DragOver);
+            this.playlistView.DragLeave += new System.EventHandler(this.PlaylistView_DragLeave);
+            this.playlistView.DragDrop += new DragEventHandler(this.PlaylistView_DragDrop);
+            this.playlistView.Paint += new PaintEventHandler(this.PlaylistView_Paint);
 
             this.colNum.Text = "#";
             this.colNum.Width = 38;

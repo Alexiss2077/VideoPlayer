@@ -42,6 +42,11 @@ namespace VideoPlayer
         private int _prevVolume = 100;
         private readonly Random _rng = new();
 
+        // ── Drag & Drop reordenamiento en playlist ───────────────────────
+        private int _dragSourceIndex = -1;   // índice del ítem que se arrastra
+        private int _dragTargetIndex = -1;   // índice donde se soltará
+        private bool _isDraggingItem = false;
+
         private static readonly float[] SpeedValues = { 0.25f, 0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f };
 
         // ════════════════════════════════════════════════════════════════════
@@ -75,6 +80,8 @@ namespace VideoPlayer
             _player.Stopped += (_, _) => UI(OnVlcStopped);
             _player.EndReached += (_, _) => Task.Delay(300).ContinueWith(_ => UI(PlayNext));
             _player.EncounteredError += (_, _) => UI(OnVlcError);
+            // LengthChanged se dispara cuando VLC calcula la duración real del stream
+            _player.LengthChanged += (_, args) => UI(() => OnVlcLengthChanged(args.Length));
         }
 
         private void WireSeekBarEvents()
@@ -94,14 +101,40 @@ namespace VideoPlayer
         // ════════════════════════════════════════════════════════════════════
         //  Eventos VLC
         // ════════════════════════════════════════════════════════════════════
-        private void OnVlcPlaying() => btnPlayPause.Text = "⏸";
-        private void OnVlcPaused() => btnPlayPause.Text = "▶";
+        private void OnVlcPlaying()
+        {
+            btnPlayPause.Text = "⏸";
+            _fullscreenForm?.NotifyPlaying(true);
+        }
+        private void OnVlcPaused()
+        {
+            btnPlayPause.Text = "▶";
+            _fullscreenForm?.NotifyPlaying(false);
+        }
 
         private void OnVlcStopped()
         {
             btnPlayPause.Text = "▶";
             seekBar.Value = 0;
             lblTime.Text = "0:00 / 0:00";
+            _fullscreenForm?.NotifyPlaying(false);
+        }
+
+        private void OnVlcLengthChanged(long lengthMs)
+        {
+            // Actualizar duración en el ListView y en el panel de propiedades
+            if (_currentIndex < 0 || _currentIndex >= _playlist.Count) return;
+
+            var info = _playlist[_currentIndex];
+            if (lengthMs > 0)
+                info.Duration = TimeSpan.FromMilliseconds(lengthMs);
+
+            // Actualizar subitem de duración en la fila del ListView
+            if (_currentIndex < playlistView.Items.Count)
+                playlistView.Items[_currentIndex].SubItems[2].Text = info.DurationFormatted;
+
+            // Refrescar propiedades
+            ShowProperties(info);
         }
 
         private void OnVlcError() =>
@@ -164,6 +197,7 @@ namespace VideoPlayer
                 volumeBar.Value = _prevVolume;
                 btnMute.Text = "🔊";
             }
+            _fullscreenForm?.NotifyMuted(_isMuted, _isMuted ? 0 : volumeBar.Value);
         }
 
         private void BtnShuffle_Click(object? sender, EventArgs e)
@@ -219,6 +253,7 @@ namespace VideoPlayer
             lblVolume.Text = volumeBar.Value.ToString();
             _isMuted = volumeBar.Value == 0;
             btnMute.Text = _isMuted ? "🔇" : "🔊";
+            _fullscreenForm?.NotifyVolume(volumeBar.Value);
         }
 
         private void CmbSpeed_SelectedIndexChanged(object? sender, EventArgs e)
@@ -246,11 +281,11 @@ namespace VideoPlayer
             if (_playlist.Count == 0) return;
             int next;
             if (_shuffleOn) next = _rng.Next(_playlist.Count);
-            else if (_repeatOn) next = _currentIndex;
+            else if (_repeatOn) next = _currentIndex < 0 ? 0 : _currentIndex;
             else
             {
-                next = _currentIndex + 1;
-                if (next >= _playlist.Count) return;
+                // Wrap-around: al llegar al último vuelve al primero
+                next = (_currentIndex + 1) % _playlist.Count;
             }
             PlayAtIndex(next);
         }
@@ -298,15 +333,20 @@ namespace VideoPlayer
 
                 var item = new ListViewItem((_playlist.Count).ToString());
                 item.SubItems.Add(info.FileName);
-                item.SubItems.Add(info.DurationFormatted);
+                item.SubItems.Add(info.DurationFormatted);   // ya tiene valor post-parse
                 item.SubItems.Add(info.FileSizeFormatted);
                 item.SubItems.Add(info.FilePath);
                 item.BackColor = Color.FromArgb(10, 16, 28);
 
+                int itemIndex = _playlist.Count - 1;   // índice del ítem recién agregado
                 if (playlistView.InvokeRequired)
                     playlistView.Invoke(() => playlistView.Items.Add(item));
                 else
                     playlistView.Items.Add(item);
+
+                // Si este video estaba ya en reproducción, refrescar propiedades
+                if (itemIndex == _currentIndex)
+                    UI(() => ShowProperties(info));
             }
         }
 
@@ -326,9 +366,24 @@ namespace VideoPlayer
                 try
                 {
                     using var media = new Media(_libVLC, path, FromType.FromPath);
+                    using var waiter = new System.Threading.ManualResetEventSlim(false);
+
+                    // ParsedChanged se dispara cuando el parse termina (Done o Failed)
+                    media.ParsedChanged += (_, args) =>
+                    {
+                        if (args.ParsedStatus == MediaParsedStatus.Done ||
+                            args.ParsedStatus == MediaParsedStatus.Failed ||
+                            args.ParsedStatus == MediaParsedStatus.Timeout)
+                            waiter.Set();
+                    };
+
                     media.Parse(MediaParseOptions.ParseLocal);
 
-                    info.Duration = TimeSpan.FromMilliseconds(media.Duration);
+                    // Esperar máximo 8 segundos a que termine el parse
+                    waiter.Wait(TimeSpan.FromSeconds(8));
+
+                    if (media.Duration > 0)
+                        info.Duration = TimeSpan.FromMilliseconds(media.Duration);
 
                     foreach (var track in media.Tracks)
                     {
@@ -437,13 +492,41 @@ namespace VideoPlayer
 
             videoPanel.Controls.Remove(_videoView);
 
-            _fullscreenForm = new FullscreenForm();
+            bool isPlaying = _player.State == VLCState.Playing;
+            _fullscreenForm = new FullscreenForm(_player, isPlaying, _isMuted,
+                                                 _isMuted ? 0 : volumeBar.Value);
+
             _fullscreenForm.FullscreenExited += FullscreenForm_FullscreenExited;
+            _fullscreenForm.PlayPauseRequested += (_, _) => BtnPlayPause_Click(null, EventArgs.Empty);
+            _fullscreenForm.StopRequested += (_, _) => BtnStop_Click(null, EventArgs.Empty);
+            _fullscreenForm.PrevRequested += (_, _) => BtnPrev_Click(null, EventArgs.Empty);
+            _fullscreenForm.NextRequested += (_, _) => BtnNext_Click(null, EventArgs.Empty);
+            _fullscreenForm.MuteRequested += (_, _) => BtnMute_Click(null, EventArgs.Empty);
+            _fullscreenForm.SeekRequested += FullscreenForm_SeekRequested;
+            _fullscreenForm.VolumeChangeRequested += FullscreenForm_VolumeChangeRequested;
             _fullscreenForm.KeyDown += Form1_KeyDown;
 
             _videoView.Dock = DockStyle.Fill;
+            // Insertar videoView debajo del overlay
             _fullscreenForm.Controls.Add(_videoView);
+            _videoView.SendToBack();
+
             _fullscreenForm.Show(this);
+        }
+
+        private void FullscreenForm_SeekRequested(object? sender, float pos)
+        {
+            if (_player.Length > 0 && _player.IsSeekable)
+                _player.Position = pos;
+        }
+
+        private void FullscreenForm_VolumeChangeRequested(object? sender, int vol)
+        {
+            _player.Volume = vol;
+            volumeBar.Value = vol;
+            lblVolume.Text = vol.ToString();
+            _isMuted = vol == 0;
+            btnMute.Text = _isMuted ? "🔇" : "🔊";
         }
 
         private void FullscreenForm_FullscreenExited(object? sender, EventArgs e)
@@ -541,7 +624,7 @@ namespace VideoPlayer
         }
 
         // ════════════════════════════════════════════════════════════════════
-        //  ListView handlers
+        //  ListView — doble clic, teclado, resize
         // ════════════════════════════════════════════════════════════════════
         private void PlaylistView_DoubleClick(object? sender, EventArgs e)
         {
@@ -562,7 +645,177 @@ namespace VideoPlayer
         }
 
         // ════════════════════════════════════════════════════════════════════
-        //  Drag & Drop — Form1_DragEnter / Form1_DragDrop
+        //  Drag & Drop INTERNO — reordenar ítems dentro del ListView
+        // ════════════════════════════════════════════════════════════════════
+
+        // Paso 1: el usuario empieza a arrastrar un ítem
+        private void PlaylistView_ItemDrag(object? sender, ItemDragEventArgs e)
+        {
+            if (e.Item is not ListViewItem item) return;
+            _dragSourceIndex = item.Index;
+            _dragTargetIndex = -1;
+            _isDraggingItem = true;
+            playlistView.DoDragDrop(item, DragDropEffects.Move);
+        }
+
+        // Paso 1b: DragEnter en el propio ListView — aceptar movimiento interno y archivos externos
+        private void PlaylistView_DragEnter(object? sender, DragEventArgs e)
+        {
+            if (e.Data!.GetDataPresent(typeof(ListViewItem)))
+                e.Effect = DragDropEffects.Move;
+            else if (e.Data.GetDataPresent(DataFormats.FileDrop))
+                e.Effect = DragDropEffects.Copy;
+            else
+                e.Effect = DragDropEffects.None;
+        }
+
+        // Paso 2: mientras arrastra — calcular la posición de inserción y
+        //         dibujar la línea indicadora
+        private void PlaylistView_DragOver(object? sender, DragEventArgs e)
+        {
+            if (!_isDraggingItem)
+            {
+                // Podría ser un archivo externo
+                e.Effect = e.Data?.GetDataPresent(DataFormats.FileDrop) == true
+                    ? DragDropEffects.Copy : DragDropEffects.None;
+                return;
+            }
+
+            e.Effect = DragDropEffects.Move;
+
+            // Convertir coordenadas de pantalla a cliente del ListView
+            var pt = playlistView.PointToClient(new Point(e.X, e.Y));
+            var target = playlistView.GetItemAt(pt.X, pt.Y);
+
+            int newTarget = target?.Index ?? playlistView.Items.Count - 1;
+            if (newTarget != _dragTargetIndex)
+            {
+                _dragTargetIndex = newTarget;
+                playlistView.Invalidate();   // repintar para la línea indicadora
+            }
+        }
+
+        private void PlaylistView_DragLeave(object? sender, EventArgs e)
+        {
+            _dragTargetIndex = -1;
+            _isDraggingItem = false;
+            playlistView.Invalidate();
+        }
+
+        // Paso 3: soltar — mover el ítem a la nueva posición
+        private void PlaylistView_DragDrop(object? sender, DragEventArgs e)
+        {
+            _isDraggingItem = false;
+            playlistView.Invalidate();
+
+            // ── Soltar archivo externo ──────────────────────────────────
+            if (!e.Data!.GetDataPresent(typeof(ListViewItem)))
+            {
+                var files = (string[]?)e.Data.GetData(DataFormats.FileDrop);
+                if (files != null)
+                {
+                    var videos = files.Where(IsVideoFile).ToArray();
+                    if (videos.Length > 0) _ = AddFilesAsync(videos);
+                }
+                _dragSourceIndex = _dragTargetIndex = -1;
+                return;
+            }
+
+            // ── Reordenar interno ───────────────────────────────────────
+            int src = _dragSourceIndex;
+            int dst = _dragTargetIndex;
+            _dragSourceIndex = _dragTargetIndex = -1;
+
+            if (src < 0 || dst < 0 || src == dst) return;
+
+            // Mover en _playlist
+            var info = _playlist[src];
+            _playlist.RemoveAt(src);
+            _playlist.Insert(dst, info);
+
+            // Ajustar _currentIndex
+            if (_currentIndex == src)
+                _currentIndex = dst;
+            else if (src < _currentIndex && dst >= _currentIndex)
+                _currentIndex--;
+            else if (src > _currentIndex && dst <= _currentIndex)
+                _currentIndex++;
+
+            // Reconstruir ListView
+            RebuildPlaylistView();
+        }
+
+        // Paso 4 (visual): dibujar línea azul de inserción sobre el ListView
+        private void PlaylistView_DrawItem(object? sender, DrawListViewItemEventArgs e)
+        {
+            e.DrawDefault = true;
+        }
+
+        private void PlaylistView_DrawSubItem(object? sender, DrawListViewSubItemEventArgs e)
+        {
+            e.DrawDefault = true;
+        }
+
+        private void PlaylistView_DrawColumnHeader(object? sender, DrawListViewColumnHeaderEventArgs e)
+        {
+            e.DrawDefault = true;
+        }
+
+        // ── Pintar la línea indicadora de inserción ───────────────────────
+        private void PlaylistView_Paint(object? sender, PaintEventArgs e)
+        {
+            if (_dragTargetIndex < 0 || !_isDraggingItem) return;
+
+            int itemH = playlistView.Items.Count > 0
+                ? playlistView.GetItemRect(0).Height : 20;
+
+            int lineY = _dragTargetIndex < playlistView.Items.Count
+                ? playlistView.GetItemRect(_dragTargetIndex).Top
+                : (playlistView.Items.Count > 0
+                    ? playlistView.GetItemRect(playlistView.Items.Count - 1).Bottom
+                    : 0);
+
+            using var pen = new System.Drawing.Pen(Theme.Accent, 2f);
+            // Triángulo izquierdo
+            e.Graphics.FillPolygon(new System.Drawing.SolidBrush(Theme.Accent),
+                new[] {
+                    new Point(0,      lineY - 4),
+                    new Point(8,      lineY),
+                    new Point(0,      lineY + 4)
+                });
+            // Línea horizontal
+            e.Graphics.DrawLine(pen, 8, lineY, playlistView.Width - 8, lineY);
+        }
+
+        // ── Reconstruir ListView desde _playlist ──────────────────────────
+        private void RebuildPlaylistView()
+        {
+            playlistView.BeginUpdate();
+            playlistView.Items.Clear();
+
+            for (int i = 0; i < _playlist.Count; i++)
+            {
+                var info = _playlist[i];
+                var item = new ListViewItem((i + 1).ToString());
+                item.SubItems.Add(info.FileName);
+                item.SubItems.Add(info.DurationFormatted);
+                item.SubItems.Add(info.FileSizeFormatted);
+                item.SubItems.Add(info.FilePath);
+                item.BackColor = i == _currentIndex
+                    ? Theme.HighlightRow
+                    : System.Drawing.Color.FromArgb(10, 16, 28);
+                playlistView.Items.Add(item);
+            }
+
+            playlistView.EndUpdate();
+
+            // Asegurar que el ítem activo sea visible
+            if (_currentIndex >= 0 && _currentIndex < playlistView.Items.Count)
+                playlistView.EnsureVisible(_currentIndex);
+        }
+
+        // ════════════════════════════════════════════════════════════════════
+        //  Drag & Drop EXTERNO — arrastrar archivos desde el explorador
         // ════════════════════════════════════════════════════════════════════
         private void Form1_DragEnter(object? sender, DragEventArgs e)
         {
