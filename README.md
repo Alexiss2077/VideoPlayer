@@ -130,9 +130,9 @@ El panel lateral se actualiza automáticamente al reproducir cada video:
 
 ### Diseño
 - Tema oscuro consistente en toda la interfaz: `#08080C` → `#0E1628` → acento `#38BDF8`
-- `ThemedListView` con header completamente personalizado (elimina el cuadrado blanco nativo)
+- `ThemedListView` con header completamente personalizado.
 - Controles personalizados: `FlatButton`, `SeekBar`, `VolumeBar`
-- Compatible con el **VS Forms Designer** (sin bucles ni lambdas en `InitializeComponent`)
+- Compatible con el **VS Forms Designer** (sin bucles ni lambdas no soportados en `InitializeComponent`)
 
 ---
 
