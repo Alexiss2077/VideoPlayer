@@ -1,31 +1,43 @@
-﻿// ═══════════════════════════════════════════════════════════════════════════
+﻿// ════════════════════════════════════════════════════════════════════════════
 //  FullscreenForm.cs  —  NO tiene archivo .Designer.cs asociado.
-//  Si Visual Studio generó un FullscreenForm.Designer.cs automáticamente,
-//  ELIMÍNALO del proyecto (clic derecho → Eliminar en el Explorador).
-//  Esta clase se configura 100% por código y no necesita diseñador visual.
-// ═══════════════════════════════════════════════════════════════════════════
+//  Si Visual Studio generó un FullscreenForm.Designer.cs, ELIMÍNALO.
+// ════════════════════════════════════════════════════════════════════════════
 
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using LibVLCSharp.Shared;
 
 namespace VideoPlayer
 {
-    // ──────────────────────────────────────────────────────────────────────
-    // NO es "partial" → VS no intentará buscar/crear un .Designer.cs
-    // ──────────────────────────────────────────────────────────────────────
     internal sealed class FullscreenForm : Form
     {
-        // Evento que notifica a Form1 para restaurar el VideoView
+        // ── Eventos hacia Form1 ───────────────────────────────────────────
         public event EventHandler? FullscreenExited;
+        public event EventHandler? PlayPauseRequested;
+        public event EventHandler? StopRequested;
+        public event EventHandler? PrevRequested;
+        public event EventHandler? NextRequested;
+        public event EventHandler? MuteRequested;
+        public event EventHandler<float>? SeekRequested;
+        public event EventHandler<int>? VolumeChangeRequested;
 
+        // ── Overlay ───────────────────────────────────────────────────────
+        private readonly FullscreenOverlay _overlay;
+
+        // ─────────────────────────────────────────────────────────────────
+        //  Timer de polling del cursor  (evita depender de MouseMove que
+        //  VLC bloquea con su HWND nativo)
+        // ─────────────────────────────────────────────────────────────────
+        private readonly System.Windows.Forms.Timer _cursorPollTimer;
         private readonly System.Windows.Forms.Timer _hideCursorTimer;
-        private bool _cursorHidden;
+        private Point _lastCursorPos = Point.Empty;
+        private bool _cursorHidden = false;
 
-        // ──────────────────────────────────────────────────────────────────
-        public FullscreenForm()
+        // ════════════════════════════════════════════════════════════════
+        public FullscreenForm(LibVLCSharp.Shared.MediaPlayer player,
+                              bool isPlaying, bool isMuted, int volume)
         {
-            // Toda la configuración se hace aquí, sin InitializeComponent()
             this.SuspendLayout();
 
             this.FormBorderStyle = FormBorderStyle.None;
@@ -38,72 +50,120 @@ namespace VideoPlayer
             this.Text = "VideoPlayer — Pantalla Completa";
             this.Name = "FullscreenForm";
 
-            _hideCursorTimer = new System.Windows.Forms.Timer();
-            _hideCursorTimer.Interval = 2500;
+            // ── Overlay ─────────────────────────────────────────────────
+            _overlay = new FullscreenOverlay(player);
+            _overlay.SetPlaying(isPlaying);
+            _overlay.SetMuted(isMuted, volume);
+
+            _overlay.PlayPauseRequested += (_, _) => PlayPauseRequested?.Invoke(this, EventArgs.Empty);
+            _overlay.StopRequested += (_, _) => StopRequested?.Invoke(this, EventArgs.Empty);
+            _overlay.PrevRequested += (_, _) => PrevRequested?.Invoke(this, EventArgs.Empty);
+            _overlay.NextRequested += (_, _) => NextRequested?.Invoke(this, EventArgs.Empty);
+            _overlay.MuteRequested += (_, _) => MuteRequested?.Invoke(this, EventArgs.Empty);
+            _overlay.ExitRequested += (_, _) => RequestExit();
+            _overlay.SeekRequested += (_, p) => SeekRequested?.Invoke(this, p);
+            _overlay.VolumeChangeRequested += (_, v) => VolumeChangeRequested?.Invoke(this, v);
+
+            // ── Timer de polling del cursor (cada 80 ms) ─────────────────
+            //  VLC captura todos los eventos del mouse con su ventana nativa,
+            //  por eso usamos Cursor.Position en vez de MouseMove.
+            _cursorPollTimer = new System.Windows.Forms.Timer { Interval = 80 };
+            _cursorPollTimer.Tick += CursorPollTimer_Tick;
+
+            // ── Timer ocultar cursor (3 s sin movimiento) ─────────────────
+            _hideCursorTimer = new System.Windows.Forms.Timer { Interval = 3000 };
             _hideCursorTimer.Tick += HideCursorTimer_Tick;
 
             this.KeyDown += FullscreenForm_KeyDown;
-            this.MouseMove += FullscreenForm_MouseMove;
-            this.DoubleClick += FullscreenForm_DoubleClick;
 
             this.ResumeLayout(false);
         }
 
-        // ── Ocultar cursor por inactividad ────────────────────────────────
+        // ════════════════════════════════════════════════════════════════
+        //  OnLoad — arrancar timers y mostrar overlay
+        // ════════════════════════════════════════════════════════════════
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+
+            var screen = Screen.FromControl(this);
+            _overlay.AttachToScreen(screen);
+            _overlay.Show(this);
+
+            _lastCursorPos = Cursor.Position;
+            _cursorPollTimer.Start();
+
+            // Mostrar la barra al arrancar para que el usuario sepa que existe
+            _overlay.ShowBar();
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  Polling del cursor — detecta movimiento aunque VLC capture el mouse
+        // ════════════════════════════════════════════════════════════════
+        private void CursorPollTimer_Tick(object? sender, EventArgs e)
+        {
+            var pos = Cursor.Position;
+
+            if (pos != _lastCursorPos)
+            {
+                _lastCursorPos = pos;
+
+                // Mostrar cursor si estaba oculto
+                if (_cursorHidden) { Cursor.Show(); _cursorHidden = false; }
+
+                // Reiniciar timer de ocultar cursor
+                _hideCursorTimer.Stop();
+                _hideCursorTimer.Start();
+
+                // Mostrar barra de controles
+                _overlay.ShowBar();
+            }
+        }
+
         private void HideCursorTimer_Tick(object? sender, EventArgs e)
         {
             _hideCursorTimer.Stop();
-            if (!_cursorHidden)
-            {
-                Cursor.Hide();
-                _cursorHidden = true;
-            }
+            if (!_cursorHidden) { Cursor.Hide(); _cursorHidden = true; }
         }
 
-        private void FullscreenForm_MouseMove(object? sender, MouseEventArgs e)
-        {
-            if (_cursorHidden)
-            {
-                Cursor.Show();
-                _cursorHidden = false;
-            }
-            _hideCursorTimer.Stop();
-            _hideCursorTimer.Start();
-        }
+        // ════════════════════════════════════════════════════════════════
+        //  API pública
+        // ════════════════════════════════════════════════════════════════
+        public void NotifyPlaying(bool p) => _overlay.SetPlaying(p);
+        public void NotifyMuted(bool m, int v) => _overlay.SetMuted(m, v);
+        public void NotifyVolume(int v) => _overlay.SetVolume(v);
 
-        // ── Teclas ────────────────────────────────────────────────────────
+        // ════════════════════════════════════════════════════════════════
+        //  Teclado
+        // ════════════════════════════════════════════════════════════════
         private void FullscreenForm_KeyDown(object? sender, KeyEventArgs e)
         {
-            if (e.KeyCode == Keys.Escape || e.KeyCode == Keys.F11)
+            switch (e.KeyCode)
             {
-                e.Handled = true;
-                RequestExit();
+                case Keys.Escape:
+                case Keys.F11:
+                    e.Handled = true;
+                    RequestExit();
+                    break;
+                case Keys.Space:
+                    PlayPauseRequested?.Invoke(this, EventArgs.Empty);
+                    e.Handled = true;
+                    break;
             }
         }
 
-        private void FullscreenForm_DoubleClick(object? sender, EventArgs e)
-        {
-            RequestExit();
-        }
-
-        // ── Salida controlada ─────────────────────────────────────────────
+        // ════════════════════════════════════════════════════════════════
+        //  Salida
+        // ════════════════════════════════════════════════════════════════
         public void RequestExit()
         {
-            ShowCursorIfHidden();
+            if (_cursorHidden) { Cursor.Show(); _cursorHidden = false; }
+            _cursorPollTimer.Stop();
             _hideCursorTimer.Stop();
+            _overlay.HideBarImmediately();
             FullscreenExited?.Invoke(this, EventArgs.Empty);
         }
 
-        private void ShowCursorIfHidden()
-        {
-            if (_cursorHidden)
-            {
-                Cursor.Show();
-                _cursorHidden = false;
-            }
-        }
-
-        // Impedir cierre accidental con Alt+F4; redirigir a RequestExit
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             if (e.CloseReason == CloseReason.UserClosing)
@@ -119,8 +179,10 @@ namespace VideoPlayer
         {
             if (disposing)
             {
-                ShowCursorIfHidden();
+                if (_cursorHidden) { Cursor.Show(); _cursorHidden = false; }
+                _cursorPollTimer.Dispose();
                 _hideCursorTimer.Dispose();
+                if (!_overlay.IsDisposed) _overlay.Dispose();
             }
             base.Dispose(disposing);
         }
