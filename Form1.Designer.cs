@@ -7,7 +7,7 @@ namespace VideoPlayer
     {
         private System.ComponentModel.IContainer components = null;
 
-        // ── Controles ────────────────────────────────────────────────────────
+        // ── Controles 
         private TableLayoutPanel mainLayout;
         private SplitContainer contentSplit;
         private Panel videoPanel;
@@ -54,7 +54,7 @@ namespace VideoPlayer
         private VolumeBar volumeBar;
         private Label lblVolume;
         private Label lblTime;
-        private ComboBox cmbSpeed;
+        private ThemedComboBox cmbSpeed;
         private Label lblSpeedHint;
         private FlatButton btnShuffle;
         private FlatButton btnRepeat;
@@ -68,11 +68,11 @@ namespace VideoPlayer
         private FlatButton btnRemove;
         private FlatButton btnClearPlaylist;
         private ThemedListView playlistView;
+        private PlaylistColumnHeader playlistColHeader;
         private ColumnHeader colNum;
         private ColumnHeader colName;
         private ColumnHeader colDuration;
         private ColumnHeader colSize;
-        private ColumnHeader colPath;
 
         private System.Windows.Forms.Timer updateTimer;
 
@@ -124,7 +124,7 @@ namespace VideoPlayer
             this.volumeBar = new VolumeBar();
             this.lblVolume = new Label();
             this.lblTime = new Label();
-            this.cmbSpeed = new ComboBox();
+            this.cmbSpeed = new ThemedComboBox();
             this.lblSpeedHint = new Label();
             this.btnShuffle = new FlatButton();
             this.btnRepeat = new FlatButton();
@@ -136,11 +136,11 @@ namespace VideoPlayer
             this.btnRemove = new FlatButton();
             this.btnClearPlaylist = new FlatButton();
             this.playlistView = new ThemedListView();
+            this.playlistColHeader = new PlaylistColumnHeader();
             this.colNum = new ColumnHeader();
             this.colName = new ColumnHeader();
             this.colDuration = new ColumnHeader();
             this.colSize = new ColumnHeader();
-            this.colPath = new ColumnHeader();
             this.updateTimer = new System.Windows.Forms.Timer(this.components);
 
             this.mainLayout.SuspendLayout();
@@ -153,9 +153,10 @@ namespace VideoPlayer
             this.buttonsPanel.SuspendLayout();
             this.playlistPanel.SuspendLayout();
             this.playlistHeader.SuspendLayout();
+            this.playlistColHeader.SuspendLayout();
             this.SuspendLayout();
 
-            // ── mainLayout ───────────────────────────────────────────────────
+            // ── mainLayout 
             this.mainLayout.Dock = DockStyle.Fill;
             this.mainLayout.ColumnCount = 1;
             this.mainLayout.RowCount = 3;
@@ -169,7 +170,7 @@ namespace VideoPlayer
             this.mainLayout.Controls.Add(this.controlsPanel, 0, 1);
             this.mainLayout.Controls.Add(this.playlistPanel, 0, 2);
 
-            // ── contentSplit ─────────────────────────────────────────────────
+            // ── contentSplit 
             this.contentSplit.Dock = DockStyle.Fill;
             this.contentSplit.Orientation = Orientation.Vertical;
             this.contentSplit.SplitterDistance = 660;
@@ -178,11 +179,11 @@ namespace VideoPlayer
             this.contentSplit.Panel1.Controls.Add(this.videoPanel);
             this.contentSplit.Panel2.Controls.Add(this.propertiesPanel);
 
-            // ── videoPanel ───────────────────────────────────────────────────
+            // ── videoPanel 
             this.videoPanel.Dock = DockStyle.Fill;
             this.videoPanel.BackColor = Theme.VideoBlack;
 
-            // ── propertiesPanel ──────────────────────────────────────────────
+            // ── propertiesPanel 
             this.propertiesPanel.Dock = DockStyle.Fill;
             this.propertiesPanel.BackColor = Theme.Surface;
             this.propertiesPanel.Padding = new Padding(10, 8, 8, 8);
@@ -197,7 +198,7 @@ namespace VideoPlayer
             this.lblPropsHeader.Height = 26;
             this.lblPropsHeader.TextAlign = ContentAlignment.MiddleLeft;
 
-            // ── propsTable ───────────────────────────────────────────────────
+            // ── propsTable 
             this.propsTable.Dock = DockStyle.Fill;
             this.propsTable.ColumnCount = 2;
             this.propsTable.RowCount = 10;
@@ -474,10 +475,6 @@ namespace VideoPlayer
             this.lblSpeedHint.AutoSize = true;
             this.lblSpeedHint.Location = new Point(470, 12);
 
-            this.cmbSpeed.DropDownStyle = ComboBoxStyle.DropDownList;
-            this.cmbSpeed.BackColor = Theme.Surface2;
-            this.cmbSpeed.ForeColor = Theme.TextPrimary;
-            this.cmbSpeed.FlatStyle = FlatStyle.Flat;
             this.cmbSpeed.Font = Theme.FontSmall;
             this.cmbSpeed.Width = 58;
             this.cmbSpeed.Location = new Point(494, 7);
@@ -515,12 +512,13 @@ namespace VideoPlayer
             this.buttonsPanel.Controls.Add(this.btnFullscreen);
             this.buttonsPanel.Resize += new System.EventHandler(this.ButtonsPanel_Resize);
 
-            // ── playlistPanel ────────────────────────────────────────────────
+            // ── playlistPanel 
             this.playlistPanel.Dock = DockStyle.Fill;
             this.playlistPanel.BackColor = Theme.Background;
             this.playlistPanel.Padding = new Padding(0, 2, 0, 0);
             this.playlistPanel.Margin = new Padding(0, 4, 0, 0);
             this.playlistPanel.Controls.Add(this.playlistView);
+            this.playlistPanel.Controls.Add(this.playlistColHeader);
             this.playlistPanel.Controls.Add(this.playlistHeader);
 
             this.playlistHeader.Dock = DockStyle.Top;
@@ -558,11 +556,16 @@ namespace VideoPlayer
             this.btnClearPlaylist.Dock = DockStyle.Right;
             this.btnClearPlaylist.Click += new System.EventHandler(this.BtnClearPlaylist_Click);
 
+            // Header falso: Panel con Paint personalizado que reemplaza al nativo blanco
+            this.playlistColHeader.Dock = DockStyle.Top;
+            this.playlistColHeader.Height = 24;
+            this.playlistColHeader.LinkedListView = this.playlistView;
             this.playlistView.Dock = DockStyle.Fill;
             this.playlistView.View = View.Details;
             this.playlistView.Font = Theme.FontNormal;
             this.playlistView.AllowDrop = true;
             this.playlistView.UseCompatibleStateImageBehavior = false;
+            this.playlistView.HeaderStyle = ColumnHeaderStyle.None;
             this.playlistView.DoubleClick += new System.EventHandler(this.PlaylistView_DoubleClick);
             this.playlistView.KeyDown += new KeyEventHandler(this.PlaylistView_KeyDown);
             this.playlistView.Resize += new System.EventHandler(this.PlaylistView_Resize);
@@ -584,16 +587,14 @@ namespace VideoPlayer
             this.colSize.Text = "Tamaño";
             this.colSize.Width = 85;
             this.colSize.TextAlign = HorizontalAlignment.Center;
-            this.colPath.Text = "Ruta";
-            this.colPath.Width = 0;
 
-            this.playlistView.Columns.AddRange(new ColumnHeader[] { colNum, colName, colDuration, colSize, colPath });
+            this.playlistView.Columns.AddRange(new ColumnHeader[] { colNum, colName, colDuration, colSize });
 
-            // ── Timer ────────────────────────────────────────────────────────
+            // ── Timer 
             this.updateTimer.Interval = 500;
             this.updateTimer.Tick += new System.EventHandler(this.UpdateTimer_Tick);
 
-            // ── Form ─────────────────────────────────────────────────────────
+            // ── Form 
             this.Text = "VideoPlayer";
             this.Size = new Size(1000, 700);
             this.MinimumSize = new Size(700, 520);
@@ -612,6 +613,7 @@ namespace VideoPlayer
             this.buttonsPanel.ResumeLayout(false);
             this.buttonsPanel.PerformLayout();
             this.controlsPanel.ResumeLayout(false);
+            this.playlistColHeader.ResumeLayout(false);
             this.playlistHeader.ResumeLayout(false);
             this.playlistPanel.ResumeLayout(false);
             this.contentSplit.Panel1.ResumeLayout(false);

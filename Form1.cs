@@ -10,6 +10,7 @@
 //  El proyecto debe compilarse como x64 (ya configurado en el .csproj)
 // ═══════════════════════════════════════════════════════════════════════════
 
+
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -24,13 +25,13 @@ namespace VideoPlayer
 {
     public partial class Form1 : Form
     {
-        // ── LibVLC ───────────────────────────────────────────────────────────
+        // ── LibVLC 
         private LibVLC _libVLC = null!;
         private LibVLCSharp.Shared.MediaPlayer _player = null!;
         private VideoView _videoView = null!;
         private Media? _currentMedia;
 
-        // ── Estado ───────────────────────────────────────────────────────────
+        // ── Estado 
         private readonly List<VideoFileInfo> _playlist = new();
         private int _currentIndex = -1;
         private bool _isSeeking = false;
@@ -42,7 +43,7 @@ namespace VideoPlayer
         private int _prevVolume = 100;
         private readonly Random _rng = new();
 
-        // ── Drag & Drop reordenamiento en playlist ───────────────────────
+        // ── Drag & Drop reordenamiento en playlist 
         private int _dragSourceIndex = -1;   // índice del ítem que se arrastra
         private int _dragTargetIndex = -1;   // índice donde se soltará
         private bool _isDraggingItem = false;
@@ -335,7 +336,7 @@ namespace VideoPlayer
                 item.SubItems.Add(info.FileName);
                 item.SubItems.Add(info.DurationFormatted);   // ya tiene valor post-parse
                 item.SubItems.Add(info.FileSizeFormatted);
-                item.SubItems.Add(info.FilePath);
+                item.Tag = info.FilePath;   // ruta guardada en Tag
                 item.BackColor = Color.FromArgb(10, 16, 28);
 
                 int itemIndex = _playlist.Count - 1;   // índice del ítem recién agregado
@@ -642,6 +643,7 @@ namespace VideoPlayer
         {
             int fixedW = colNum.Width + colDuration.Width + colSize.Width + 20;
             colName.Width = Math.Max(120, playlistView.Width - fixedW);
+            playlistColHeader.Invalidate();
         }
 
         // ════════════════════════════════════════════════════════════════════
@@ -800,10 +802,10 @@ namespace VideoPlayer
                 item.SubItems.Add(info.FileName);
                 item.SubItems.Add(info.DurationFormatted);
                 item.SubItems.Add(info.FileSizeFormatted);
-                item.SubItems.Add(info.FilePath);
+                item.Tag = info.FilePath;   // ruta guardada en Tag
                 item.BackColor = i == _currentIndex
                     ? Theme.HighlightRow
-                    : System.Drawing.Color.FromArgb(10, 16, 28);
+                    : Color.FromArgb(10, 16, 28);
                 playlistView.Items.Add(item);
             }
 
